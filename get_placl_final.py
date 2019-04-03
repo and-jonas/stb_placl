@@ -1,26 +1,18 @@
 
+#====================================================================================== -
+
+# AUTHOR: Jonas Anderegg
+
+# Extract PLACL from leaf scans
+
+#====================================================================================== -
+
+
 #import required packages and functions
 
 import matplotlib.pyplot as plt
 import numpy as np
-import imageio
-from skimage import util
-from skimage.color import rgb2gray
-from skimage.filters import sobel
-from skimage.segmentation import mark_boundaries
-from skimage.util import img_as_float
-from skimage import io, color
-from skimage import morphology
 import cv2
-from functools import reduce
-from skimage.feature import peak_local_max
-from skimage import data, img_as_float
-from PIL import Image
-import PIL.ImageOps
-from scipy import ndimage as ndi
-from skimage.morphology import extrema
-from skimage.measure import label
-from skimage import exposure
 import os
 import pandas as pd
 
@@ -219,13 +211,16 @@ for k in files:
 
         print("Error in: " + k)
 
+#store output in dataframe
 df = pd.DataFrame(
     {'id': ID,
      'placl': PLACL,
     })
 
+#save to csv
+df.to_csv("O:/Projects/KP0011/3/RefData/Result/placl.csv", index = False)
 
-# plot
+# plot results if required
 fig, ax = plt.subplots(1, 2, figsize=(10, 10), sharex=True, sharey=True)
 ax[0].imshow(mask_cleaned_3)
 ax[0].set_title("seg")
@@ -234,38 +229,8 @@ ax[1].set_title("final")
 plt.tight_layout()
 plt.show()
 
-# plot
 fig, ax = plt.subplots(1, 1, figsize=(10, 10))
 ax.imshow(Color_Masked)
 ax.set_title("MASKED")
 plt.tight_layout()
 plt.show()
-
-# Filter regions marked as lesions
-
-nb_components, output, stats, centroids = cv2.connectedComponentsWithStats(mask_cleaned, connectivity=8)
-nb_components = nb_components - 1
-
-# loop over the detected components
-for c in range(0, nb_components):
-    # compute the center of the contour
-
-    # draw the contour and center of the shape on the image
-    cv2.circle(image, (cX, cY), 7, (255, 255, 255), -1)
-    cv2.putText(image, "center", (cX - 20, cY - 20),
-                cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 2)
-
-    # show the image
-    cv2.imshow("Image", image)
-    cv2.waitKey(0)
-
-# Extract remaining components
-nb_components, output, stats, centroids = cv2.connectedComponentsWithStats(mask_cleaned_2, connectivity=8)
-nb_components = nb_components - 1
-
-centroids = centroids[-len(centroids)]
-dd = centroids[0:, 0]
-
-# Draw centroids
-for c in range(0, nb_components):
-    cnt = cv2.circle(cnt, tuple(np.uint(centroids[c])), 5, (255, 0, 0), -1)
