@@ -24,19 +24,22 @@ def list_files(dir):
     for (dirpath, dirnames, filenames) in os.walk(dir):
         for f in filenames:
             if f.endswith("leafOriginal.png"):
-                if "_t3_" in f or "_t2_" in f:
+                if "_t2_" in f:
+#               if "_t3_" in f or "_t2_" in f:
                     file_list.append(os.path.join(dirpath, f))
     return file_list
 
 #list all images to analyze
 files = list_files(path_folder_raw)
 
-save_path = "O:/Projects/KP0011/3/RefData/Result/overlay/"
+save_path = "O:/Projects/KP0011/3/RefData/Result/"
 
 #iterate over images
 
 PLACL = []
 ID = []
+
+# k = "O:/FIP/2018/WW023/RefTraits/Macro/stb_senescence2018_fpww023/macro_outcomes/t3\\Overlay\\fpww023_t3_sn15_1_leafOriginal.png"
 
 #iterate over all images
 
@@ -106,10 +109,7 @@ for k in files:
         img = cv2.cvtColor(Color_Masked, cv2.COLOR_RGB2HSV)
 
         # Create a mask for brown pixels
-        if "_t2_" in k:
-            mask = cv2.inRange(img, np.array([0, 95, 95]), np.array([24, 255, 255]))
-        elif "_t3_" in k:
-            mask = cv2.inRange(img, np.array([0, 95, 95]), np.array([19, 255, 255]))
+        mask = cv2.inRange(img, np.array([0, 95, 95]), np.array([25, 255, 255]))
 
         # Remove small areas (holes WITHIN LESIONS)
         ## Find all connected components
@@ -131,7 +131,7 @@ for k in files:
 
         # Remove Noise
         ## Rectangular Kernel
-        kernel = cv2.getStructuringElement(cv2.MORPH_RECT,(10,10))
+        kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE,(20,20))
         ## Remove noise by morphological opening
         opening = cv2.morphologyEx(mask_cleaned_1, cv2.MORPH_OPEN, kernel)
 
@@ -170,22 +170,42 @@ for k in files:
             rows, cols = np.nonzero(mask_cleaned_seg)
             right_edge = cols.max()
 
+            #get convexity defects
+            _, contours, _ = cv2.findContours(mask_cleaned_2, mode=cv2.RETR_TREE, method=cv2.CHAIN_APPROX_SIMPLE)
+
+            # Find right-most contour
+            maxx = []
+            for i in range(0, len(contours)):
+                maxx.append(contours[i][0:, 0].max())
+
+            cnt_right = contours[maxx.index(max(maxx))]
+
+            hull = cv2.convexHull(cnt_right, returnPoints=False)
+            defects = cv2.convexityDefects(cnt_right, hull)
+
+            maj_defs = []
+            for i in range(defects.shape[0]):
+                s, e, f, d = defects[i, 0]
+                start = tuple(cnt_right[s][0])
+                end = tuple(cnt_right[e][0])
+                far = tuple(cnt_right[f][0])
+                cv2.line(Color_Masked, start, end, [0, 255, 0], 2)
+                if d > 75000:
+                    cv2.circle(Color_Masked, far, 10, [0, 0, 255], -1)
+                    maj_defs.append(1)
+
             # Drop component if only leaf tip necrosis: If there are only few lesions,
             # and if centroid of the right-most lesion is close to leaf tip
-            if "_t3_" in k:
-                mask_cleaned_3 = mask_cleaned_2.copy()
-                if (nb_components <= 5 and comp_size > 50000):
-                    if max_r_comp >= 0.8*right_edge:
-                        mask_cleaned_3[output == comp_id + 1] = 0
-
-            elif "_t2_" in k:
-                mask_cleaned_3 = mask_cleaned_2.copy()
+            mask_cleaned_3 = mask_cleaned_2.copy()
+            if (nb_components <= 5 and comp_size > 50000) or len(maj_defs) > 0:
+                if max_r_comp >= 0.8*right_edge:
+                    mask_cleaned_3[output == comp_id + 1] = 0
 
             # Find contours
             _, contours, _ = cv2.findContours(mask_cleaned_3, mode=cv2.RETR_TREE, method=cv2.CHAIN_APPROX_SIMPLE)
 
             # Draw contours onto original image
-            cnt = cv2.drawContours(Color_Masked, contours, -1, (128,255,0), 2)
+            cnt = cv2.drawContours(Color_Masked, contours, -1, (255,0,0), 2)
 
             # Calculate PLACL as the area of the lesion devided by the area of the segmented leaf
             result = np.count_nonzero(mask_cleaned_3)/np.count_nonzero(mask_cleaned_seg)
@@ -235,13 +255,13 @@ df.to_csv("O:/Projects/KP0011/3/RefData/Result/placl.csv", index = False)
 fig, ax = plt.subplots(1, 2, figsize=(10, 10), sharex=True, sharey=True)
 ax[0].imshow(mask_cleaned_3)
 ax[0].set_title("seg")
-ax[1].imshow(drawing)
+ax[1].imshow(Color_Masked)
 ax[1].set_title("final")
 plt.tight_layout()
 plt.show()
 
 fig, ax = plt.subplots(1, 1, figsize=(10, 10))
-ax.imshow(Color_Masked)
+ax.imshow(mask_cleaned_3)
 ax.set_title("MASKED")
 plt.tight_layout()
 plt.show()
