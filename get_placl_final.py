@@ -1,13 +1,12 @@
 
 #import required packages and functions
+
 import matplotlib.pyplot as plt
 import numpy as np
 import imageio
 from skimage import util
-from skimage.data import astronaut
 from skimage.color import rgb2gray
 from skimage.filters import sobel
-from skimage.segmentation import felzenszwalb, slic, quickshift, watershed
 from skimage.segmentation import mark_boundaries
 from skimage.util import img_as_float
 from skimage import io, color
@@ -270,5 +269,3 @@ dd = centroids[0:, 0]
 # Draw centroids
 for c in range(0, nb_components):
     cnt = cv2.circle(cnt, tuple(np.uint(centroids[c])), 5, (255, 0, 0), -1)
-
-la = []
