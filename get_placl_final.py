@@ -38,6 +38,8 @@ save_path = "O:/Projects/KP0011/3/RefData/Result/overlay/"
 PLACL = []
 ID = []
 
+k = "O:/FIP/2018/WW023/RefTraits/Macro/stb_senescence2018_fpww023/macro_outcomes/t3\\Overlay\\fpww023_t3_fungic_sn410_2_leafOriginal.png"
+
 #iterate over all images
 
 for k in files:
@@ -106,10 +108,13 @@ for k in files:
         img = cv2.cvtColor(Color_Masked, cv2.COLOR_RGB2HSV)
 
         # Create a mask for brown pixels
+        # for early scans, define "brown" with more tolerance,
+        # as many lesions are in development with still significant "green touch" to them
+        # for t3 more restrictive, to protect against effects of physiological senescence
         if "_t2_" in k:
             mask = cv2.inRange(img, np.array([0, 95, 95]), np.array([24, 255, 255]))
         elif "_t3_" in k:
-            mask = cv2.inRange(img, np.array([0, 95, 95]), np.array([19, 255, 255]))
+            mask = cv2.inRange(img, np.array([0, 95, 95]), np.array([20, 255, 255]))
 
         # Remove small areas (holes WITHIN LESIONS)
         ## Find all connected components
@@ -131,7 +136,7 @@ for k in files:
 
         # Remove Noise
         ## Rectangular Kernel
-        kernel = cv2.getStructuringElement(cv2.MORPH_RECT,(10,10))
+        kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE,(25,25))
         ## Remove noise by morphological opening
         opening = cv2.morphologyEx(mask_cleaned_1, cv2.MORPH_OPEN, kernel)
 
@@ -158,6 +163,8 @@ for k in files:
             nb_components, output, stats, centroids = cv2.connectedComponentsWithStats(mask_cleaned_2, connectivity=8)
             nb_components = nb_components - 1
 
+            sizes = stats[1:, -1];
+
             #first centroid is from background, not of interest, drop
             centroids = centroids[1:,]
             #get the right-most component centroid x-coordinate
@@ -172,20 +179,26 @@ for k in files:
 
             # Drop component if only leaf tip necrosis: If there are only few lesions,
             # and if centroid of the right-most lesion is close to leaf tip
+            # this right-most lesion should be of a minimum size, unless
+            # it is the only lesion on the leaf (with tolerance 1)
             if "_t3_" in k:
                 mask_cleaned_3 = mask_cleaned_2.copy()
-                if (nb_components <= 5 and comp_size > 50000):
+                if (nb_components <= 5 and comp_size > 100000):
+                    if max_r_comp >= 0.8*right_edge:
+                        mask_cleaned_3[output == comp_id + 1] = 0
+                elif nb_components <= 1:
                     if max_r_comp >= 0.8*right_edge:
                         mask_cleaned_3[output == comp_id + 1] = 0
 
+            # apply no such rule for t2, as there is almost no leaf-tip necrosis at that stage
             elif "_t2_" in k:
                 mask_cleaned_3 = mask_cleaned_2.copy()
 
             # Find contours
             _, contours, _ = cv2.findContours(mask_cleaned_3, mode=cv2.RETR_TREE, method=cv2.CHAIN_APPROX_SIMPLE)
 
-            # Draw contours onto original image
-            cnt = cv2.drawContours(Color_Masked, contours, -1, (128,255,0), 2)
+            # Draw red contours onto original image
+            cnt = cv2.drawContours(Color_Masked, contours, -1, (255,0,0), 2)
 
             # Calculate PLACL as the area of the lesion devided by the area of the segmented leaf
             result = np.count_nonzero(mask_cleaned_3)/np.count_nonzero(mask_cleaned_seg)
@@ -204,8 +217,8 @@ for k in files:
             # Find contours
             _, contours, _ = cv2.findContours(mask_cleaned_2, mode=cv2.RETR_TREE, method=cv2.CHAIN_APPROX_SIMPLE)
 
-            # Draw contours onto original image
-            cnt = cv2.drawContours(Color_Masked, contours, -1, (128,255,0), 2)
+            # Draw red contours onto original image
+            cnt = cv2.drawContours(Color_Masked, contours, -1, (255,0,0), 2)
 
         ############################################
         # SAVE RESULT
@@ -235,7 +248,7 @@ df.to_csv("O:/Projects/KP0011/3/RefData/Result/placl.csv", index = False)
 fig, ax = plt.subplots(1, 2, figsize=(10, 10), sharex=True, sharey=True)
 ax[0].imshow(mask_cleaned_3)
 ax[0].set_title("seg")
-ax[1].imshow(drawing)
+ax[1].imshow(Color_Masked)
 ax[1].set_title("final")
 plt.tight_layout()
 plt.show()
