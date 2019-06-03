@@ -39,7 +39,7 @@ save_path = "O:/Projects/KP0011/3/RefData/Result/"
 PLACL = []
 ID = []
 
-# k = "O:/FIP/2018/WW023/RefTraits/Macro/stb_senescence2018_fpww023/macro_outcomes/t3\\Overlay\\fpww023_t3_sn15_1_leafOriginal.png"
+k = "O:/FIP/2018/WW023/RefTraits/Macro/stb_senescence2018_fpww023/macro_outcomes/t3\\Overlay\\fpww023_t3_sn15_1_leafOriginal.png"
 
 #iterate over all images
 
@@ -58,11 +58,11 @@ for k in files:
         # SEGMENT LEAF FROM BACKGROUND
         ############################################
 
-        # crop to area of interest, removing black lines
+        # crop to area of interest
         img = img[350:1900, 285:8000]
 
         # remove white background
-        # blur image a bit
+        # blur image
         blur = cv2.GaussianBlur(img, (15, 15), 2)
 
         # mask for paper background
@@ -105,60 +105,71 @@ for k in files:
         # GET LESIONS AS BROWN PIXELS AND FILTER
         ############################################
 
-        # Transform to HSV
+        # Transform image to HSV color space where brown can be efficiently segmented
+        # this efficiently segments lesions; insect damage, powdery mildew symptoms and other damages on leaves are not
+        # considered.
         img = cv2.cvtColor(Color_Masked, cv2.COLOR_RGB2HSV)
 
-        # Create a mask for brown pixels
+        # Create a mask (i.e. binary image) for brown pixels;
+        # Ideal brown color has HSV (h, s, v) (30°, 100%, 59%). In openCV this corresponds to (15, 255, 150);
+        # "Near to brown" pixels (i.e. more brown or more green) pixels are also included by defining a wider range
         mask = cv2.inRange(img, np.array([0, 95, 95]), np.array([25, 255, 255]))
 
-        # Remove small areas (holes WITHIN LESIONS)
-        ## Find all connected components
+        # Remove small objects from the mask, these arise from non-uniform color of lesions;
+        ## Get all connected components
         nb_components, output, stats, centroids = cv2.connectedComponentsWithStats(cv2.bitwise_not(mask), connectivity=8)
-        ## ConnectedComponentswithStats yields every seperated component with information on each of them, such as size
-        ## Take out the background which is also considered a component
+
+        ## Remove the background, which also counts as component
         sizes = stats[1:, -1];
         nb_components = nb_components - 1
-        ## Define minimal size of particle
+
+        ## Define a minimal particle size
         min_size = 3500
-        ## Create cleaned mask
+
+        ## Remove components smaller than min_size
         mask_cleaned_1 = np.ones((output.shape))
-        ## for every component in the image,
-        ## keep only those above min_size
         for i in range(0, nb_components):
             if sizes[i] >= min_size:
                 mask_cleaned_1[output == i + 1] = 255
         mask_cleaned_1 = cv2.bitwise_not(np.uint8(mask_cleaned_1))
 
-        # Remove Noise
-        ## Rectangular Kernel
+        # Remove noise and smooth mask borders
+        ## Define an elliptic structuring element
         kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE,(20,20))
-        ## Remove noise by morphological opening
+        ## Perform morphological opening (i.e. erosion followed by dilation)
         opening = cv2.morphologyEx(mask_cleaned_1, cv2.MORPH_OPEN, kernel)
 
-        # Remove small areas (holes WITHIN HEALTHY)
-        ## Find all connected components
+        # Remove small detected areas; these are most likely not lesions
+        ## Get all connected components
         nb_components, output, stats, centroids = cv2.connectedComponentsWithStats(opening, connectivity=8)
-        ## ConnectedComponentswithStats yields every seperated component with information on each of them, such as size
-        ## Take out the background which is also considered a component
+
+        ## Remove the background, which also counts as component
         sizes = stats[1:, -1];
         nb_components = nb_components - 1
-        ## Define minimal size of particle
+
+        ## Define minimal lesion size
         min_size = 2500
-        ## Create cleaned mask
+
+        ## Remove components smaller than min_size
         mask_cleaned_2 = np.zeros((output.shape))
-        ## For every component in the image,
-        ## keep only those above min_size
         for i in range(0, nb_components):
             if sizes[i] >= min_size:
                 mask_cleaned_2[output == i + 1] = 255
         mask_cleaned_2 = np.uint8(mask_cleaned_2)
 
-        try:
 
+        # If there are any lesions, filter them according to
+        #  i) the position of their centroid and the number of lesions on the entire leaf;
+        #  ii) convexity defects.
+        # these criteria help to avoid detecting leaf tip necrosis as STB lesions.
+
+        try:
+            # Get all connected components
             nb_components, output, stats, centroids = cv2.connectedComponentsWithStats(mask_cleaned_2, connectivity=8)
+            # Remove background
             nb_components = nb_components - 1
 
-            #first centroid is from background, not of interest, drop
+            #first centroid is from background, hence not of interest
             centroids = centroids[1:,]
             #get the right-most component centroid x-coordinate
             max_r_comp = centroids[0:,0].max()
@@ -231,7 +242,7 @@ for k in files:
         # SAVE RESULT
         ############################################
 
-        # Resize image to save space
+        # Resize image
         cnt = cv2.resize(cnt, (0, 0), fx=0.5, fy=0.5)
 
         # Save overlay
@@ -250,18 +261,3 @@ df = pd.DataFrame(
 
 #save to csv
 df.to_csv("O:/Projects/KP0011/3/RefData/Result/placl.csv", index = False)
-
-# plot results if required
-fig, ax = plt.subplots(1, 2, figsize=(10, 10), sharex=True, sharey=True)
-ax[0].imshow(mask_cleaned_3)
-ax[0].set_title("seg")
-ax[1].imshow(Color_Masked)
-ax[1].set_title("final")
-plt.tight_layout()
-plt.show()
-
-fig, ax = plt.subplots(1, 1, figsize=(10, 10))
-ax.imshow(mask_cleaned_3)
-ax.set_title("MASKED")
-plt.tight_layout()
-plt.show()

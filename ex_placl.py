@@ -11,36 +11,33 @@
 
 #import required packages and functions
 
-import matplotlib.pyplot as plt
 import numpy as np
 import cv2
 import os
 import pandas as pd
 
-path_folder_raw = "O:/FIP/2018/WW023/RefTraits/Macro/stb_senescence2018_fpww023/macro_outcomes/"
+path_folder_raw = dirfrom
 
 #function to list all images to analyze
+#only t2 and t3 scans are amenable to the analysis
 def list_files(dir):
     file_list = []
     for (dirpath, dirnames, filenames) in os.walk(dir):
         for f in filenames:
             if f.endswith("leafOriginal.png"):
                 if "_t3_" in f or "_t2_" in f:
-                #if "_t2_" in f:
                     file_list.append(os.path.join(dirpath, f))
     return file_list
 
 #list all images to analyze
 files = list_files(path_folder_raw)
 
-save_path = "O:/Projects/KP0011/3/RefData/Result/overlay/"
+save_path = dirto
 
 #iterate over images
 
 PLACL = []
 ID = []
-
-k = "O:/FIP/2018/WW023/RefTraits/Macro/stb_senescence2018_fpww023/macro_outcomes/t3\\Overlay\\fpww023_t3_sn949_2_leafOriginal.png"
 
 #iterate over all images
 
@@ -59,28 +56,21 @@ for k in files:
         # SEGMENT LEAF FROM BACKGROUND
         ############################################
 
-        # crop to area of interest, removing black lines
+        # crop to area of interest
         img = img[350:1900, 285:8000]
 
         # remove white background
-        # blur image a bit
+        # blur image
         blur = cv2.GaussianBlur(img, (15, 15), 2)
 
         # mask for paper background
         lower_white = np.array([190, 190, 190], dtype=np.uint8)  # threshold for white pixels
         upper_white = np.array([255, 255, 255], dtype=np.uint8)
         mask1 = cv2.inRange(blur, lower_white, upper_white)  # could also use threshold
-        # mask needs to be inverted,
-        # since we want to set the BACKGROUND to white
         mask1 = cv2.bitwise_not(mask1)
 
-        # There are still spots not belonging to the leaf
-        # remove small objects to get rid of them
-
-        # find all connected components
+        # Remove noise
         nb_components, output, stats, centroids = cv2.connectedComponentsWithStats(mask1, connectivity=8)
-        # connectedComponentswithStats yields every seperated component with information on each of them, such as size
-        # take out the background which is also considered a component
         sizes = stats[1:, -1];
         nb_components = nb_components - 1
 
@@ -90,8 +80,6 @@ for k in files:
 
         # cleaned mask
         mask_cleaned_seg = np.zeros((output.shape))
-        # for every component in the image,
-        # keep only those above min_size
         for i in range(0, nb_components):
             if sizes[i] >= min_size:
                 mask_cleaned_seg[output == i + 1] = 255
@@ -102,13 +90,12 @@ for k in files:
         Color_Masked = img.copy()
         Color_Masked[indx, indy] = 255
 
-        # mask for black stuff
+        # mask for black
         lower_black = np.array([40, 40, 40], dtype=np.uint8)  # threshold for white pixels
         upper_black = np.array([85, 85, 85], dtype=np.uint8)
         mask2 = cv2.inRange(Color_Masked, lower_black, upper_black)  # could also use threshold
-        # mask needs to be inverted,
-        # since we want to set the BACKGROUND to white
         mask2 = cv2.bitwise_not(mask2)
+
         [indx, indy] = np.where(mask2 == 0)
         Color_Masked = Color_Masked.copy()
         Color_Masked[indx, indy] = 255
@@ -268,4 +255,4 @@ df = pd.DataFrame(
     })
 
 #save to csv
-df.to_csv("O:/Projects/KP0011/3/RefData/Result/placl_fin.csv", index = False)
+df.to_csv(dirto, index = False)
